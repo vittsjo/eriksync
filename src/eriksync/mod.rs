@@ -125,8 +125,20 @@ impl Config {
         self.nodes.remove(&node_name);
     }
 
+    pub fn remove_nodes(&mut self, node_names: Vec<String>) {
+        for n in node_names {
+            self.remove_node(n);
+        }
+    }
+
     pub fn remove_target(&mut self, target_name: String) {
         self.targets.remove(&target_name);
+    }
+
+    pub fn remove_targets(&mut self, target_names: Vec<String>) {
+        for t in target_names {
+            self.remove_target(t);
+        }
     }
 
     pub fn nodes(&self) -> Vec<Node> {
@@ -160,45 +172,4 @@ impl Config {
     pub fn contains_target(&self, target_name: &String) -> bool {
         self.targets.get(target_name).is_some()
     }
-}
-
-
-mod test {
-    extern crate serde;
-    extern crate serde_json;
-
-    #[cfg(test)]
-    fn config_test() {
-
-        let mut config = eriksync::Config::new();
-
-        println!("{}", serde_json::to_string(&config).unwrap());
-
-        config.add_node(eriksync::Node::new("xapek".to_string()).description(
-            "PLSM Lab".to_string(),
-        ));
-        config.add_node(eriksync::Node::new("xapek".to_string()).description(
-            "PLSM Lab".to_string(),
-        ));
-        println!("{}", serde_json::to_string(&config).unwrap());
-
-        config.add_node(eriksync::Node::new("vapmi".to_string()).description(
-            "MacBook Pro".to_string(),
-        ));
-        println!("{}", serde_json::to_string(&config).unwrap());
-
-        config.add_target(eriksync::Target::new(
-            "dotfiles".to_string(),
-            "~/dotfiles/".to_string(),
-        ));
-        println!("{}", serde_json::to_string(&config).unwrap());
-
-
-        config.add_target(eriksync::Target::new(
-            "dotfiles".to_string(),
-            "~/dotfiles/".to_string(),
-        ));
-        println!("{}", serde_json::to_string(&config).unwrap());
-    }
-
 }
