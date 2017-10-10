@@ -7,6 +7,22 @@ pub fn build_cli() -> App<'static, 'static> {
         .version(crate_version!())
         .about(crate_description!())
         .subcommand(
+            SubCommand::with_name("completions")
+                .about("Generate shell completions")
+                .subcommand(SubCommand::with_name("bash").about(
+                    "Generate Bash completions",
+                ))
+                .subcommand(SubCommand::with_name("fish").about(
+                    "Generate Fish completions",
+                ))
+                .subcommand(SubCommand::with_name("zsh").about(
+                    "Generate Zsh completions",
+                ))
+                .subcommand(SubCommand::with_name("powershell").about(
+                    "Generate PowerShell completions",
+                )),
+        )
+        .subcommand(
             SubCommand::with_name("add-node")
                 .about("Add node")
                 .arg(Arg::with_name("name").long("name").short("n").takes_value(

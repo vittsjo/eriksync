@@ -11,6 +11,7 @@ extern crate clap;
 mod eriksync;
 mod rsync_command;
 mod utils;
+mod cli;
 
 use std::io::prelude::*;
 
@@ -68,15 +69,28 @@ fn extract_options(sub_m: &clap::ArgMatches) -> (String, Vec<String>) {
     (node.to_string(), targets)
 }
 
-mod cli;
 
 fn main() {
     let config_file = create_config_file();
     let mut config = eriksync::Config::load_file(config_file.as_path()).unwrap();
 
     let matches = cli::build_cli().get_matches();
+    let bin_name = "eriksync";
 
     match matches.subcommand() {
+        ("completions", Some(cmd)) => {
+            let shell = match cmd.subcommand() {
+                ("bash", Some(_)) => clap::Shell::Bash,
+                ("fish", Some(_)) => clap::Shell::Fish,
+                ("zsh", Some(_)) => clap::Shell::Zsh,
+                ("powershell", Some(_)) => clap::Shell::PowerShell,
+                _ => {
+                    println!("{}", cmd.usage());
+                    return;
+                }
+            };
+            cli::build_cli().gen_completions_to(bin_name, shell, &mut std::io::stdout());
+        }
         ("config-location", Some(_)) => {
             println!("{}", config.file_path);
         }
