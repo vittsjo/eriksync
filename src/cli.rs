@@ -80,13 +80,13 @@ pub fn build_cli() -> App<'static, 'static> {
                 .arg(Arg::with_name("").multiple(true).takes_value(true)),
         )
         .subcommand(
-            SubCommand::with_name("push-command")
+            SubCommand::with_name("dry-push")
                 .about("Show commands of push without transfering data")
                 .help("node_name [all|target1] [target2]......")
                 .arg(Arg::with_name("").multiple(true).takes_value(true)),
         )
         .subcommand(
-            SubCommand::with_name("pull-command")
+            SubCommand::with_name("dry-pull")
                 .about("Show commands of pull without transfering data")
                 .help("node_name [all|target1] [target2]......")
                 .arg(Arg::with_name("").multiple(true).takes_value(true)),
