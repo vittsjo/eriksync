@@ -5,18 +5,19 @@ use std;
 use std::io;
 use std::fs::File;
 use std::io::prelude::*;
-
+use std::cmp::Ordering;
+use std::vec::Vec;
 use std::collections::HashMap;
 
 #[allow(dead_code)]
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Eq, Serialize, Deserialize, Clone, Debug)]
 pub struct Node {
     pub name: String,
     pub description: String,
 }
 
 #[allow(dead_code)]
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Eq, Serialize, Deserialize, Clone, Debug)]
 pub struct Target {
     pub name: String,
     pub path: String,
@@ -52,6 +53,24 @@ impl Node {
     }
 }
 
+impl PartialOrd for Node {
+    fn partial_cmp(&self, other: &Node) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Node {
+    fn cmp(&self, other: &Node) -> Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Node) -> bool {
+        self.name == other.name
+    }
+}
+
 #[allow(dead_code)]
 impl Target {
     pub fn new(name: String, path: String) -> Target {
@@ -59,6 +78,24 @@ impl Target {
             name: name,
             path: path,
         }
+    }
+}
+
+impl PartialOrd for Target {
+    fn partial_cmp(&self, other: &Target) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Target {
+    fn cmp(&self, other: &Target) -> Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
+impl PartialEq for Target {
+    fn eq(&self, other: &Target) -> bool {
+        self.name == other.name
     }
 }
 
@@ -142,19 +179,27 @@ impl Config {
     }
 
     pub fn nodes(&self) -> Vec<Node> {
-        self.nodes.iter().map(|(_, v)| v.clone()).collect()
+        let mut nodes: Vec<Node> = self.nodes.iter().map(|(_, v)| v.clone()).collect();
+        nodes.sort();
+        nodes
     }
 
     pub fn node_names(&self) -> Vec<String> {
-        self.nodes.iter().map(|(_, v)| v.name.clone()).collect()
+        let mut names: Vec<String> = self.nodes.iter().map(|(_, v)| v.name.clone()).collect();
+        names.sort();
+        names
     }
 
     pub fn targets(&self) -> Vec<Target> {
-        self.targets.iter().map(|(_, v)| v.clone()).collect()
+        let mut targets: Vec<Target> = self.targets.iter().map(|(_, v)| v.clone()).collect();
+        targets.sort();
+        targets
     }
 
     pub fn target_names(&self) -> Vec<String> {
-        self.targets.iter().map(|(_, v)| v.name.clone()).collect()
+        let mut names: Vec<String> = self.targets.iter().map(|(_, v)| v.name.clone()).collect();
+        names.sort();
+        names
     }
 
     pub fn get_node(&self, node_name: &String) -> Option<&Node> {
