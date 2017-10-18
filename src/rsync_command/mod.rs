@@ -89,10 +89,10 @@ fn get_command(src: String, dest: String) -> RsyncCommand {
 
 fn get_target_pair(node: &eriksync::Node, target: &eriksync::Target) -> (String, String) {
     let remote_dir = format!("{}:{}", node.name, target.path);
-    let mut local_dir = target.path.clone();
-    if local_dir.chars().nth(0).unwrap() == '~' {
-        local_dir = local_dir.replace("~", &utils::home_dir());
-    }
+    let local_dir = utils::expand_user(&std::path::Path::new(&target.path));
 
-    (local_dir, remote_dir)
+    (
+        String::from(local_dir.to_str().unwrap_or_default()),
+        remote_dir,
+    )
 }

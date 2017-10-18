@@ -20,7 +20,7 @@ use std::io::prelude::*;
 use clap::{Arg, App, SubCommand};
 
 const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {
-    name: "eriksync",
+    name: crate_name!(),
     author: "me",
 };
 
@@ -65,7 +65,7 @@ fn extract_options(cmd: &clap::ArgMatches) -> (String, Vec<String>) {
 }
 
 pub fn build_cli() -> App<'static, 'static> {
-    App::new("eriksync")
+    App::new(crate_name!())
         .author(crate_authors!())
         .version(crate_version!())
         .about(crate_description!())
@@ -76,6 +76,9 @@ pub fn build_cli() -> App<'static, 'static> {
                 .takes_value(true)
                 .help("The configuration file used by Eriksync"),
         )
+        .subcommand(SubCommand::with_name("version").about(
+            "Show version of Eriksync",
+        ))
         .subcommand(
             SubCommand::with_name("completions")
                 .about("Generate shell completions")
@@ -180,8 +183,8 @@ fn main() {
                 "config.json",
             ) {
                 Ok(config_file) => config_file,
-                Err(_) => {
-                    errln!("Failed to get default config file path.");
+                Err(e) => {
+                    errln!("{}", e);
                     return;
                 }
             }
@@ -192,8 +195,10 @@ fn main() {
         (_, None) => {
             cli.print_help().unwrap();
         }
+        ("version", Some(_)) => {
+            println!("{} {}", crate_name!(), crate_version!());
+        }
         ("completions", Some(cmd)) => {
-            let bin_name = "eriksync";
             let shell = match cmd.subcommand() {
                 ("bash", Some(_)) => clap::Shell::Bash,
                 ("fish", Some(_)) => clap::Shell::Fish,
@@ -204,7 +209,7 @@ fn main() {
                     return;
                 }
             };
-            cli.gen_completions_to(bin_name, shell, &mut std::io::stdout());
+            cli.gen_completions_to(crate_name!(), shell, &mut std::io::stdout());
         }
         ("init", Some(_)) => {
             create_config_file(&config_file);
