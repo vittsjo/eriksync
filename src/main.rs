@@ -15,31 +15,27 @@ mod eriksync;
 mod rsync_command;
 mod utils;
 
-use std::io::prelude::*;
-
 use clap::{Arg, App, SubCommand};
+
+use eriksync::config;
 
 const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {
     name: crate_name!(),
     author: "me",
 };
 
-fn create_config_file(config_file: &std::path::PathBuf) -> Option<std::path::PathBuf> {
+fn create_config_file(
+    config_file: &std::path::PathBuf,
+    format: config::ConfigFormat,
+) -> Option<std::path::PathBuf> {
 
     if config_file.exists() {
         println!("{:?} already exists", config_file);
         return Some(config_file.clone());
     }
 
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(config_file.clone())
-        .expect(
-            format!("Failed to create {:?}", config_file.as_path()).as_str(),
-        );
-
-    match file.write_all(b"{\"nodes\": [], \"targets\": [] }\n") {
+    let config = config::Config::new();
+    match config.save_file(config_file, format) {
         Ok(_) => {
             println!("Created configuration file: {:?}", config_file.as_path());
             Some(config_file.clone())
@@ -65,6 +61,16 @@ fn extract_options(cmd: &clap::ArgMatches) -> (String, Vec<String>) {
 }
 
 pub fn build_cli() -> App<'static, 'static> {
+    let arg_format = Arg::with_name("format")
+        .long("format")
+        .takes_value(true)
+        .help("format of configuration file");
+
+    let arg_replace = Arg::with_name("replace").long("replace").short("r").help(
+        "replace files/folders if they already exist",
+    );
+
+
     App::new(crate_name!())
         .author(crate_authors!())
         .version(crate_version!())
@@ -76,6 +82,7 @@ pub fn build_cli() -> App<'static, 'static> {
                 .takes_value(true)
                 .help("The configuration file used by Eriksync"),
         )
+        .arg(arg_format.clone())
         .subcommand(SubCommand::with_name("version").about(
             "Show version of Eriksync",
         ))
@@ -95,9 +102,12 @@ pub fn build_cli() -> App<'static, 'static> {
                     "Generate PowerShell completions",
                 )),
         )
-        .subcommand(SubCommand::with_name("init").about(
-            "Initial Eriksync configuration file",
-        ))
+        .subcommand(
+            SubCommand::with_name("init")
+                .about("Initial Eriksync configuration file")
+                .arg(arg_replace.clone())
+                .arg(arg_format.clone()),
+        )
         .subcommand(
             SubCommand::with_name("add-node")
                 .about("Add node")
@@ -140,9 +150,11 @@ pub fn build_cli() -> App<'static, 'static> {
         .subcommand(SubCommand::with_name("config-location").about(
             "Print location of configuration file",
         ))
-        .subcommand(SubCommand::with_name("show-config").about(
-            "Print configuration",
-        ))
+        .subcommand(
+            SubCommand::with_name("show-config")
+                .about("Print configuration")
+                .arg(arg_format.clone()),
+        )
         .subcommand(
             SubCommand::with_name("push")
                 .about("Send data from local host to remote host")
@@ -169,24 +181,48 @@ pub fn build_cli() -> App<'static, 'static> {
         )
 }
 
+pub fn extract_format(cmd: &clap::ArgMatches) -> config::ConfigFormat {
+    cmd.value_of("format").map_or(
+        config::ConfigFormat::yaml,
+        |format| {
+            config::ConfigFormat::from_str(format).unwrap_or(config::ConfigFormat::yaml)
+        },
+    )
+}
+
+pub fn save_config(config: &config::Config, format: config::ConfigFormat, path: &std::path::Path) {
+    match config.save_file(path, format) {
+        Ok(_) => println!("{}", config.to_json_string()),
+        Err(e) => panic!(e), 
+    }
+}
+
+fn default_config_file_path(format: config::ConfigFormat) -> std::path::PathBuf {
+    app_dirs::get_app_dir(
+        app_dirs::AppDataType::UserConfig,
+        &APP_INFO,
+        format!("{}.{}", crate_name!(), format.to_string()).as_str(),
+    ).map_err(|e| errln!("{}", e.to_string()))
+        .unwrap()
+}
+
 fn main() {
 
     let mut cli = build_cli();
     let matches = cli.clone().get_matches();
 
+    let format = extract_format(&matches);
     let config_file = match matches.value_of("config") {
         Some(config_file) => std::path::PathBuf::from(config_file.to_string()),
         None => {
-            match app_dirs::get_app_dir(
-                app_dirs::AppDataType::UserConfig,
-                &APP_INFO,
-                "config.json",
-            ) {
-                Ok(config_file) => config_file,
-                Err(e) => {
-                    errln!("{}", e);
-                    return;
-                }
+            if default_config_file_path(config::ConfigFormat::yaml).exists() {
+                default_config_file_path(config::ConfigFormat::yaml)
+            } else if default_config_file_path(config::ConfigFormat::toml).exists() {
+                default_config_file_path(config::ConfigFormat::toml)
+            } else if default_config_file_path(config::ConfigFormat::json).exists() {
+                default_config_file_path(config::ConfigFormat::json)
+            } else {
+                default_config_file_path(config::ConfigFormat::yaml)
             }
         }
     };
@@ -211,27 +247,36 @@ fn main() {
             };
             cli.gen_completions_to(crate_name!(), shell, &mut std::io::stdout());
         }
-        ("init", Some(_)) => {
-            create_config_file(&config_file);
+        ("init", Some(cmd)) => {
+            create_config_file(&config_file, extract_format(cmd));
         }
         _ => {
-            let config = eriksync::Config::load_file(config_file.as_path());
-            if config.is_err() {
-                errln!(
-                    "Failed to load configuration file: {:?}",
-                    config_file.as_path()
-                );
-                return;
-            }
-
-            let mut config = config.unwrap();
+            let mut config = match eriksync::Config::load_file(config_file.as_path()) {
+                Ok(config) => config,
+                Err(e) => {
+                    errln!(
+                        "Failed to load configuration file: {:?}, error: {:?}",
+                        config_file.as_path(),
+                        e
+                    );
+                    return;
+                } 
+            };
 
             match matches.subcommand() {
                 ("config-location", Some(_)) => {
-                    println!("{}", config.file_path);
+                    println!("{:?}", config_file);
                 }
-                ("show-config", Some(_)) => {
-                    println!("{}", config.to_json_string());
+                ("show-config", Some(cmd)) => {
+                    let format = extract_format(&cmd);
+                    println!(
+                        "{}",
+                        match format {
+                            config::ConfigFormat::json => config.to_json_string(),
+                            config::ConfigFormat::yaml => config.to_yaml_string(),
+                            config::ConfigFormat::toml => config.to_toml_string(),
+                        }
+                    );
                 }
                 ("list-nodes", Some(_)) => {
                     for node in config.nodes() {
@@ -249,35 +294,23 @@ fn main() {
                         .expect("Node desctiption")
                         .to_string();
                     config.add_node(eriksync::Node::new(name).description(desc));
-                    match config.save_file(config_file.as_path()) {
-                        Ok(_) => println!("{}", config.to_json_string()),
-                        Err(e) => panic!(e), 
-                    }
+                    save_config(&config, format, config_file.as_path());
                 }
                 ("remove-node", Some(cmd)) => {
                     let name = cmd.value_of("name").expect("Node name").to_string();
                     config.remove_node(name);
-                    match config.save_file(config_file.as_path()) {
-                        Ok(_) => println!("{}", config.to_json_string()),
-                        Err(e) => panic!(e), 
-                    }
+                    save_config(&config, format, config_file.as_path());
                 }
                 ("add-target", Some(cmd)) => {
                     let name = cmd.value_of("name").expect("Target name").to_string();
                     let path = cmd.value_of("path").expect("Target path").to_string();
                     config.add_target(eriksync::Target::new(name, path));
-                    match config.save_file(config_file.as_path()) {
-                        Ok(_) => println!("{}", config.to_json_string()),
-                        Err(e) => panic!(e), 
-                    }
+                    save_config(&config, format, config_file.as_path());
                 }
                 ("remove-target", Some(cmd)) => {
                     let name = cmd.value_of("name").expect("Target name").to_string();
                     config.remove_target(name);
-                    match config.save_file(config_file.as_path()) {
-                        Ok(_) => println!("{}", config.to_json_string()),
-                        Err(e) => panic!(e), 
-                    }
+                    save_config(&config, format, config_file.as_path());
                 }
                 ("push", Some(cmd)) => {
                     let (node, targets) = extract_options(cmd);
