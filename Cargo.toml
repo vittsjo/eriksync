@@ -1,7 +1,7 @@
 [package]
 name = "eriksync"
-version = "0.1.4"
-authors = ["user <user@xapekcim.io>"]
+version = "0.1.5"
+authors = ["user <user@locallost>"]
 description = "A utility that allows you to synchronize your data between multiple machines via rsync."
 
 [dependencies]
