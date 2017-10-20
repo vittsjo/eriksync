@@ -211,22 +211,6 @@ fn main() {
     let mut cli = build_cli();
     let matches = cli.clone().get_matches();
 
-    let format = extract_format(&matches);
-    let config_file = match matches.value_of("config") {
-        Some(config_file) => std::path::PathBuf::from(config_file.to_string()),
-        None => {
-            if default_config_file_path(config::ConfigFormat::yaml).exists() {
-                default_config_file_path(config::ConfigFormat::yaml)
-            } else if default_config_file_path(config::ConfigFormat::toml).exists() {
-                default_config_file_path(config::ConfigFormat::toml)
-            } else if default_config_file_path(config::ConfigFormat::json).exists() {
-                default_config_file_path(config::ConfigFormat::json)
-            } else {
-                default_config_file_path(config::ConfigFormat::yaml)
-            }
-        }
-    };
-
     match matches.subcommand() {
         (_, None) => {
             cli.print_help().unwrap();
@@ -248,9 +232,26 @@ fn main() {
             cli.gen_completions_to(crate_name!(), shell, &mut std::io::stdout());
         }
         ("init", Some(cmd)) => {
+            let config_file = default_config_file_path(config::ConfigFormat::yaml);
             create_config_file(&config_file, extract_format(cmd));
         }
         _ => {
+            let format = extract_format(&matches);
+            let config_file = match matches.value_of("config") {
+                Some(config_file) => std::path::PathBuf::from(config_file.to_string()),
+                None => {
+                    if default_config_file_path(config::ConfigFormat::yaml).exists() {
+                        default_config_file_path(config::ConfigFormat::yaml)
+                    } else if default_config_file_path(config::ConfigFormat::toml).exists() {
+                        default_config_file_path(config::ConfigFormat::toml)
+                    } else if default_config_file_path(config::ConfigFormat::json).exists() {
+                        default_config_file_path(config::ConfigFormat::json)
+                    } else {
+                        default_config_file_path(config::ConfigFormat::yaml)
+                    }
+                }
+            };
+
             let mut config = match eriksync::Config::load_file(config_file.as_path()) {
                 Ok(config) => config,
                 Err(e) => {
