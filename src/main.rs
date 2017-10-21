@@ -232,7 +232,7 @@ fn main() {
             cli.gen_completions_to(crate_name!(), shell, &mut std::io::stdout());
         }
         ("init", Some(cmd)) => {
-            let config_file = default_config_file_path(config::ConfigFormat::yaml);
+            let config_file = default_config_file_path(extract_format(cmd));
             create_config_file(&config_file, extract_format(cmd));
         }
         _ => {
