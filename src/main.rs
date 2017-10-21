@@ -66,10 +66,22 @@ pub fn build_cli() -> App<'static, 'static> {
         .takes_value(true)
         .help("format of configuration file");
 
+    let arg_name = Arg::with_name("name").long("name").short("n").takes_value(
+        true,
+    );
+
+    let arg_path = Arg::with_name("path").long("path").short("p").takes_value(
+        true,
+    );
+
+    let arg_description = Arg::with_name("description")
+        .long("description")
+        .short("d")
+        .takes_value(true);
+
     let arg_replace = Arg::with_name("replace").long("replace").short("r").help(
         "replace files/folders if they already exist",
     );
-
 
     App::new(crate_name!())
         .author(crate_authors!())
@@ -82,7 +94,6 @@ pub fn build_cli() -> App<'static, 'static> {
                 .takes_value(true)
                 .help("The configuration file used by Eriksync"),
         )
-        .arg(arg_format.clone())
         .subcommand(SubCommand::with_name("version").about(
             "Show version of Eriksync",
         ))
@@ -111,39 +122,24 @@ pub fn build_cli() -> App<'static, 'static> {
         .subcommand(
             SubCommand::with_name("add-node")
                 .about("Add node")
-                .arg(Arg::with_name("name").long("name").short("n").takes_value(
-                    true,
-                ))
-                .arg(
-                    Arg::with_name("description")
-                        .long("description")
-                        .short("d")
-                        .takes_value(true),
-                ),
+                .arg(arg_name.clone())
+                .arg(arg_description.clone()),
         )
         .subcommand(
             SubCommand::with_name("remove-node")
                 .about("Remove node")
-                .arg(Arg::with_name("name").long("name").short("n").takes_value(
-                    true,
-                )),
+                .arg(arg_name.clone()),
         )
         .subcommand(
             SubCommand::with_name("add-target")
                 .about("Add target")
-                .arg(Arg::with_name("name").long("name").short("n").takes_value(
-                    true,
-                ))
-                .arg(Arg::with_name("path").long("path").short("p").takes_value(
-                    true,
-                )),
+                .arg(arg_name.clone())
+                .arg(arg_path.clone()),
         )
         .subcommand(
             SubCommand::with_name("remove-target")
                 .about("Remove target")
-                .arg(Arg::with_name("name").long("name").short("n").takes_value(
-                    true,
-                )),
+                .arg(arg_name.clone()),
         )
         .subcommand(SubCommand::with_name("list-nodes").about("Print nodes"))
         .subcommand(SubCommand::with_name("list-targets").about("Print targets"))
@@ -190,10 +186,14 @@ pub fn extract_format(cmd: &clap::ArgMatches) -> config::ConfigFormat {
     )
 }
 
-pub fn save_config(config: &config::Config, format: config::ConfigFormat, path: &std::path::Path) {
-    match config.save_file(path, format) {
-        Ok(_) => println!("{}", config.to_json_string()),
-        Err(e) => panic!(e), 
+pub fn save_config(config: &config::Config, path: &std::path::Path) {
+    if let Some(format) = config::ConfigFormat::from_path(path) {
+        match config.save_file(path, format) {
+            Ok(_) => {}
+            Err(e) => panic!(e), 
+        }
+    } else {
+        println!("{:?} Unknown format", path);
     }
 }
 
@@ -232,11 +232,11 @@ fn main() {
             cli.gen_completions_to(crate_name!(), shell, &mut std::io::stdout());
         }
         ("init", Some(cmd)) => {
-            let config_file = default_config_file_path(extract_format(cmd));
-            create_config_file(&config_file, extract_format(cmd));
+            let format = extract_format(cmd);
+            let config_file = default_config_file_path(format.clone());
+            create_config_file(&config_file, format);
         }
         _ => {
-            let format = extract_format(&matches);
             let config_file = match matches.value_of("config") {
                 Some(config_file) => std::path::PathBuf::from(config_file.to_string()),
                 None => {
@@ -295,23 +295,23 @@ fn main() {
                         .expect("Node desctiption")
                         .to_string();
                     config.add_node(eriksync::Node::new(name).description(desc));
-                    save_config(&config, format, config_file.as_path());
+                    save_config(&config, config_file.as_path());
                 }
                 ("remove-node", Some(cmd)) => {
                     let name = cmd.value_of("name").expect("Node name").to_string();
                     config.remove_node(name);
-                    save_config(&config, format, config_file.as_path());
+                    save_config(&config, config_file.as_path());
                 }
                 ("add-target", Some(cmd)) => {
                     let name = cmd.value_of("name").expect("Target name").to_string();
                     let path = cmd.value_of("path").expect("Target path").to_string();
                     config.add_target(eriksync::Target::new(name, path));
-                    save_config(&config, format, config_file.as_path());
+                    save_config(&config, config_file.as_path());
                 }
                 ("remove-target", Some(cmd)) => {
                     let name = cmd.value_of("name").expect("Target name").to_string();
                     config.remove_target(name);
-                    save_config(&config, format, config_file.as_path());
+                    save_config(&config, config_file.as_path());
                 }
                 ("push", Some(cmd)) => {
                     let (node, targets) = extract_options(cmd);
