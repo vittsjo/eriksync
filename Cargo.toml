@@ -1,6 +1,6 @@
 [package]
 name = "eriksync"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["user <user@locallost>"]
 description = "A utility that allows you to synchronize your data between multiple machines via rsync."
 
