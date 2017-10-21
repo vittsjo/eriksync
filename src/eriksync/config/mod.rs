@@ -14,7 +14,7 @@ use std::collections::HashMap;
 pub use self::node::Node;
 pub use self::target::Target;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ConfigFormat {
     yaml,
     json,
@@ -35,6 +35,16 @@ impl ConfigFormat {
             "yaml" | "yml" => Some(ConfigFormat::yaml),
             _ => None,
         }
+    }
+
+    pub fn from_path(path: &std::path::Path) -> Option<ConfigFormat> {
+        let ext = match path.extension() {
+            Some(ext) => ext.to_str().unwrap_or(&""),
+            None => {
+                return None;
+            } 
+        };
+        Self::from_str(ext)
     }
 }
 
@@ -59,26 +69,27 @@ impl Config {
 
     pub fn load_file(path: &std::path::Path) -> std::result::Result<Self, String> {
 
-        let file = match std::fs::File::open(path) {
+        let mut file = match std::fs::File::open(path) {
             Ok(file) => file,
             Err(e) => {
                 return Err(e.to_string());
             }
         };
 
-        let ext = match path.extension() {
-            Some(ext) => ext.to_str().unwrap_or(&""),
-            None => {
-                return Err(format!("{:?} has no extension name", path));
-            } 
-        };
-
-        let config: Config = match ConfigFormat::from_str(ext) {
+        let config: Config = match ConfigFormat::from_path(&path) {
             Some(ConfigFormat::yaml) => serde_yaml::from_reader(file).map_err(|e| e.to_string()),
             Some(ConfigFormat::json) => serde_json::from_reader(file).map_err(|e| e.to_string()),
-            Some(ConfigFormat::toml) => serde_json::from_reader(file).map_err(|e| e.to_string()),
+            Some(ConfigFormat::toml) => {
+                let mut buf = String::new();
+                match file.read_to_string(&mut buf) {
+                    Ok(_) => {}
+                    Err(e) => return Err(e.to_string()),
+                }
+
+                toml::from_str(&mut buf).map_err(|e| e.to_string())
+            }
             None => {
-                return Err(format!("{:?} is not valid Unicode string", ext));
+                return Err(format!("Failed to detect format from {:?} ", path));
             }
         }.unwrap();
 
